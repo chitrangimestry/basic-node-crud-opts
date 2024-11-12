@@ -1,5 +1,6 @@
 const User = require("../models/userRegisterModel");
 const bcrypt = require("bcrypt");
+const generateToken = require("../utils/jwtToken.js");
 exports.createUser = async (req, res) => {
     const { username, email, password } = req.body;
     if (!(username || email || password)) {
@@ -25,14 +26,19 @@ exports.createUser = async (req, res) => {
             profilePic: image,
         });
         await user.save();
+
+        const token = generateToken(user);
+        
         return res.status(201).json({
             status: true,
             message: "User created successfully",
+            token, 
             user: {
                 id: user._id,
                 username: user.username,
                 email: user.email,
                 profilePic: user.profilePic,
+                
             },
         });
     } catch (error) {
@@ -68,9 +74,12 @@ exports.loginUser = async (req, res) => {
                 .json({ status: false, message: "Invalid Credentials" });
         }
 
+        const token = generateToken(user);
+
         return res.status(200).json({
             status: true,
             message: "User logged in successfully",
+            token,
             user: {
                 id: user._id,
                 username: user.username,
@@ -111,9 +120,13 @@ exports.updateUser = async (req, res) => {
         );
         console.log(updatedUser);
         await updatedUser.save();
+
+        const token = generateToken(updatedUser);
+
         return res.status(200).json({
             status: true,
             message: "User updated successfully",
+            token,
             updatedUser,
         });
     } catch (error) {
@@ -133,9 +146,12 @@ exports.deleteUser = async (req, res) => {
     }
     try {
         await User.findByIdAndDelete(id);
+
+        const token = generateToken(userExist);
+
         return res
             .status(200)
-            .json({ status: true, message: "User deleted successfully" });
+            .json({ status: true, message: "User deleted successfully", token });
     } catch (error) {
         return res
             .status(500)
