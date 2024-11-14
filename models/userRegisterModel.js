@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const mongooseAggregatePaginate = require("mongoose-aggregate-paginate-v2");
 const jwt = require("jsonwebtoken");
 
 const userRegisterSchema = new mongoose.Schema(
