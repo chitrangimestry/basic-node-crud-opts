@@ -1,41 +1,42 @@
 const User = require("../models/userRegisterModel");
 const bcrypt = require("bcrypt");
-const { generateToken, verifyRefreshJWT, verifyAccessJWT } = require("../utils/jwtToken.js");
+const { generateToken, verifyRefreshJWT } = require("../utils/jwtToken.js");
 
 //--------------------refreshing a token---------------
 exports.refreshToken = async (req, res) => {
     try {
         console.log("Obtaining a new access token: ");
 
-        const refreshToken = req.cookies.refreshToken;
-        console.log(refreshToken);
+        const { refreshToken } = req.body;
+        
         if (!refreshToken) {
             return res
                 .status(401)
                 .json({ status: false, message: "Unauthorized access" });
         }
 
-        const { email } = verifyRefreshJWT(
-            refreshToken,
-            process.env.REFRESH_TOKEN_SECRET
-        );
-        const accessToken = verifyAccessJWT(
-            { email },
-            process.env.ACCESS_TOKEN_SECRET,
-            { expiresIn: process.env.ACCESS_TOKEN_EXPIRY }
-        );
+        const decoded = verifyRefreshJWT(refreshToken);
+    
+        const user = await User.findById(decoded._id);
+        if (!user) {
+            return res
+                .status(401)
+                .json({ status: false, message: "User not found." });
+        }
 
-        res.cookies("accessToken", accessToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "strict",
-        });
+        if (user.refreshToken !== refreshToken) {
+            return res
+                .status(401)
+                .json({ status: false, message: "Invalid refresh token" });
+        }
+
+        const { accessToken } = generateToken(user);
 
         return res.status(200).json({
             status: true,
             message: "Access token refreshed successfully",
             accessToken,
-        })
+        });
     } catch (error) {
         return res.status(500).json({
             status: false,
@@ -62,6 +63,7 @@ exports.createUser = async (req, res) => {
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
+        //console.log(hashedPassword);
         const image = req.file ? req.file.path : null;
 
         const user = new User({
@@ -71,6 +73,7 @@ exports.createUser = async (req, res) => {
             profilePic: image,
         });
         await user.save();
+        
         return res.status(201).json({
             status: true,
             message: "User created successfully",
@@ -78,6 +81,7 @@ exports.createUser = async (req, res) => {
                 id: user._id,
                 username: user.username,
                 email: user.email,
+                password: user.password,
                 profilePic: user.profilePic,
             },
         });
@@ -87,6 +91,7 @@ exports.createUser = async (req, res) => {
         return res.status(500).json({
             status: false,
             message: "Internal server error",
+            error
         });
     }
 };
@@ -103,7 +108,7 @@ exports.loginUser = async (req, res) => {
     }
     try {
         const user = await User.findOne({ email });
-        console.log(user);
+        // console.log(user);
 
         if (!user) {
             return res
@@ -130,8 +135,8 @@ exports.loginUser = async (req, res) => {
             id: user._id,
             username: user.username,
             email: user.email,
-            token: accessToken,
-            refreshToken: refreshToken,
+            accessToken,
+            refreshToken,
         });
     } catch (error) {
         return res.status(500).json({
@@ -151,7 +156,7 @@ exports.logoutUser = async (req, res) => {
                 .status(404)
                 .json({ status: false, message: "User not found" });
         }
-        //user.refreshToken = null;
+        user.refreshToken = null;
         await user.save();
         return res.status(200).json({
             status: true,
@@ -167,15 +172,9 @@ exports.logoutUser = async (req, res) => {
 
 //----------------------Update User----------------
 exports.updateUser = async (req, res) => {
-    // const { username, email, password } = req.body;
+    const { username, email, password } = req.body;
     const uid = req.params.id;
     // console.log(req);
-
-    // if (!(username || email || password)) {
-    //     return res
-    //         .status(200)
-    //         .json({ status: false, message: "Please enter all fields" });
-    // }
 
     try {
         const user = await User.findById({ _id: uid });
@@ -190,10 +189,14 @@ exports.updateUser = async (req, res) => {
             req.body,
             { new: true }
         );
+        if(password){
+            const hashedPassword = await bcrypt.hash(password, 10);
+            updatedUser.password = hashedPassword;
+        }
         console.log(updatedUser);
-        await updatedUser.save();
 
         const token = generateToken(updatedUser);
+        await updatedUser.save();
 
         return res.status(200).json({
             status: true,
@@ -208,25 +211,26 @@ exports.updateUser = async (req, res) => {
     }
 };
 
-//----------------------Delete User----------------
+//----------------------Delete User----------------export const deleteUser = async (req, res) => {
+
 exports.deleteUser = async (req, res) => {
     const id = req.params.id;
-    const userExist = await User.findOne({ _id: id });
-    if (!userExist) {
-        return res
-            .status(404)
-            .json({ status: false, message: "User not found" });
-    }
     try {
-        await User.findByIdAndDelete(id);
+        const user = await User.findByIdAndDelete(id);
 
-        const token = generateToken(userExist);
-
-        return res.status(200).json({
-            status: true,
-            message: "User deleted successfully",
-            token,
-        });
+        if (!user) {
+            return res
+                .status(400)
+                .json({ status: false, message: "User not Found" });
+        }
+        const token = generateToken(user);
+        return res
+            .status(200)
+            .json({
+                status: true,
+                message: "User deleted successfully",
+                token,
+            });
     } catch (error) {
         return res
             .status(500)

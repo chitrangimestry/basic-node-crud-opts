@@ -2,7 +2,7 @@ const jwt = require("jsonwebtoken");
 
 exports.generateToken = (user) => {
     const accessToken = jwt.sign(
-        { _id: this._id, email: this.email },
+        { _id: user._id, email: user.email },
         process.env.ACCESS_TOKEN_SECRET,
         {
             expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
@@ -10,7 +10,7 @@ exports.generateToken = (user) => {
     );
 
     const refreshToken = jwt.sign(
-        { _id: this._id, email: this.email },
+        { _id: user._id, email: user.email },
         process.env.REFRESH_TOKEN_SECRET,
         { expiresIn: process.env.REFRESH_TOKEN_EXPIRY }
     );
@@ -23,13 +23,10 @@ exports.verifyAccessJWT = (token) => {
         const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
         return decoded;
     } catch (error) {
-        return res
-            .status(500)
-            .json({
-                status: false,
-                message: "Access Token Verification Failed:",
-                error,
-            });
+        return {
+            status: false,
+            message: "Access Token Verification Failed:",
+        };
     }
 };
 
@@ -38,12 +35,10 @@ exports.verifyRefreshJWT = (token) => {
         const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
         return decoded;
     } catch (error) {
-        return res
-            .status(500)
-            .json({
-                status: false,
-                message: "Refresh Token Verification Failed:",
-                error,
-            });
+        return {
+            status: false,
+            message: "Refresh Token Verification Failed:",
+            error,
+        };
     }
 };
