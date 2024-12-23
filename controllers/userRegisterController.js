@@ -8,7 +8,7 @@ exports.refreshToken = async (req, res) => {
         console.log("Obtaining a new access token: ");
 
         const { refreshToken } = req.body;
-        
+
         if (!refreshToken) {
             return res
                 .status(401)
@@ -16,7 +16,7 @@ exports.refreshToken = async (req, res) => {
         }
 
         const decoded = verifyRefreshJWT(refreshToken);
-    
+
         const user = await User.findById(decoded._id);
         if (!user) {
             return res
@@ -73,7 +73,7 @@ exports.createUser = async (req, res) => {
             profilePic: image,
         });
         await user.save();
-        
+
         return res.status(201).json({
             status: true,
             message: "User created successfully",
@@ -91,7 +91,7 @@ exports.createUser = async (req, res) => {
         return res.status(500).json({
             status: false,
             message: "Internal server error",
-            error
+            error,
         });
     }
 };
@@ -189,7 +189,7 @@ exports.updateUser = async (req, res) => {
             req.body,
             { new: true }
         );
-        if(password){
+        if (password) {
             const hashedPassword = await bcrypt.hash(password, 10);
             updatedUser.password = hashedPassword;
         }
@@ -224,13 +224,11 @@ exports.deleteUser = async (req, res) => {
                 .json({ status: false, message: "User not Found" });
         }
         const token = generateToken(user);
-        return res
-            .status(200)
-            .json({
-                status: true,
-                message: "User deleted successfully",
-                token,
-            });
+        return res.status(200).json({
+            status: true,
+            message: "User deleted successfully",
+            token,
+        });
     } catch (error) {
         return res
             .status(500)
@@ -250,4 +248,63 @@ exports.getAllUsers = async (req, res) => {
             .status(500)
             .json({ status: false, message: "Internal server error" });
     }
+};
+
+//---------------------Get User Channel Profile-----------------------
+exports.getUserChannelProfile = async (req, res) => {
+    const { username } = req.params;
+    try {
+        if (!username) {
+            return res
+                .status(400)
+                .json({ statyus: false, message: "Username not found." });
+        }
+
+        const channel = await User.aggregate([
+            {
+                $match: {
+                    username: username?.tolowerCase(),
+                },
+            },
+            {
+                $lookup: {
+                    from: "subscriptions",
+                    localField: "_id",
+                    foreignField: "channel",
+                    as: "subscribers",
+                },
+            },
+            {
+                $lookup: {
+                    from: "subscriptions",
+                    localField: "_id",
+                    foreignField: "subscriber",
+                    as: "subscribedTo",
+                },
+            },
+            {
+                $addFields: {
+                    subscriberCount: { $size: "$subscribers" },
+                    channelsSubscribedToCount: { $size: "$subscribedTo" },
+                    /* $cond to check a condition and return a value based on that condition
+                        $in selects the documents where the value of a field equals any value in the specified array or an object.
+                    */  
+                    isSubscribed: {
+                        $cond: {
+                            if: {
+                                $in: [req.user?._id, "$subscribers.subscriber"],
+                            },
+                            then:  true,
+                            else: false
+                        },
+                    },
+                },
+            },
+            {
+                $project: {
+                    
+                }
+            }
+        ]);
+    } catch (error) {}
 };
